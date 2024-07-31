@@ -19,17 +19,17 @@ export class LessonResolver {
   }
 
   @Query(() => Lesson, { name: 'lesson' })
-  findOne(@Args('id', { type: () => Int }) id: number) {
+  findOne(@Args('id', { type: () => String }) id: string) {
     return this.lessonService.findOne(id);
   }
 
-  @Mutation(() => Lesson)
+  @Mutation(() => Lesson ,{name:'updateLesson'})
   updateLesson(@Args('updateLessonInput') updateLessonInput: UpdateLessonInput) {
     return this.lessonService.update(updateLessonInput.id, updateLessonInput);
   }
 
-  @Mutation(() => Lesson)
-  removeLesson(@Args('id', { type: () => Int }) id: number) {
+  @Mutation(() => Lesson, { name: 'removeLesson' })
+  removeLesson(@Args('id', { type: () => String }) id: string) {
     return this.lessonService.remove(id);
   }
 }

@@ -5,6 +5,8 @@ import { LessonModule } from './lesson/lesson.module';
 import {ApolloDriverConfig,ApolloDriver} from '@nestjs/apollo'
 import {ApolloServerPluginLandingPageLocalDefault} from '@apollo/server/plugin/landingPage/default'
 import {MongooseModule} from '@nestjs/mongoose'
+import { UserModule } from './user/user.module';
+import { AuthModule } from './auth/auth.module';
 require('dotenv').config()
 
 @Module({
@@ -13,9 +15,12 @@ require('dotenv').config()
             autoSchemaFile: true,
             driver: ApolloDriver,
             playground:false,
-            plugins:[ApolloServerPluginLandingPageLocalDefault()]
+            plugins:[ApolloServerPluginLandingPageLocalDefault()],
+            context: ({ req, res }) => ({ req, res }),
         }),
         LessonModule,
+        UserModule,
+        AuthModule,
     ],
     })
 export class AppModule {}
