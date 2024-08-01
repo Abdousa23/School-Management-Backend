@@ -12,13 +12,13 @@ export class UserResolver {
   constructor(private readonly userService: UserService) {}
 
 
-  @Mutation(() => User)
+  @Mutation(() => User, { name: 'createUser' })
   createUser(@Args('createUserInput') createUserInput: CreateUserInput) {
     return this.userService.create(createUserInput);
   }
 
   @Public()
-  @Query(() => [User], { name: 'user' })
+  @Query(() => [User], { name: 'users' })
   findAll() {
     return this.userService.findAll();
   }
@@ -29,13 +29,13 @@ export class UserResolver {
   }
 
   @UseGuards(AuthGuard)
-  @Mutation(() => User)
+  @Mutation(() => User, { name: 'updateUser' })
   updateUser(@Args('updateUserInput') updateUserInput: UpdateUserInput) {
     return this.userService.update(updateUserInput.id, updateUserInput);
   }
 
   @UseGuards(AuthGuard)
-  @Mutation(() => User)
+  @Mutation(() => User, { name: 'removeUser' })
   removeUser(@Args('id', { type: () => Int }) id: number) {
     return this.userService.remove(id);
   }
