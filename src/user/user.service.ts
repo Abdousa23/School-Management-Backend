@@ -21,12 +21,12 @@ export class UserService {
     return user
   }
 
-  findAll() {
-    return `This action returns all user`;
+  async findAll() {
+    return await this.userModel.find()
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async findOne(id: number) {
+    return await this.userModel.findById(id)
   }
 
   async findOneByUsername(username: string) {
@@ -38,25 +38,27 @@ export class UserService {
   async findOneByEmail(email: string) {
     const user = await this.userModel.findOne({email:email})
     if(!user) return null
-
+  console.log('found user',user)
     return user
   }
 
-  update(id: string, updateUserInput: UpdateUserInput) {
-    return `This action updates a #${id} user`;
+  async update(id: string, updateUserInput: UpdateUserInput) {
+    return await this.userModel.findByIdAndUpdate(id,updateUserInput,{new:true})
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async remove(id: number) {
+    return await this.userModel.findByIdAndDelete(id)
   }
   async updateRefreshToken(updateUserInput: UpdateUserInput) {
 
     const updateUser = await this.userModel.findByIdAndUpdate(updateUserInput.id,updateUserInput,{new:true})
-    console.log(updateUser)
-    console.log('updated')
     await updateUser.save()
-    console.log(updateUser)
     return updateUser
 
+  }
+  async deleteRefreshToken(email: string,username:string) {
+    const user = await this.findOneByEmail(email) || await this.findOneByUsername(username)
+    
+    return this.userModel.findByIdAndUpdate(user.id,{refreshToken:""},{new:true})
   }
 }

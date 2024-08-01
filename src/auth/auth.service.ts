@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, InternalServerErrorException, Res } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, Res, UnauthorizedException } from '@nestjs/common';
 import { CreateAuthInput } from './dto/create-auth.input';
 import { LoginAuthInput } from './dto/login.input';
 import { UserService } from 'src/user/user.service';
@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UpdateUserInput } from 'src/user/dto/update-user.input';
 import { GqlExecutionContext, GraphQLExecutionContext } from '@nestjs/graphql';
 import { ExecutionContext } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { Response } from 'express';
 @Injectable()
 export class AuthService {
@@ -19,8 +20,8 @@ export class AuthService {
       const user = searchUser;
       const updateResult = await this.userService.updateRefreshToken(updateUserInput);
       const res: Response = context.res;
-      res.cookie('refresh_token', updateUserInput.refreshToken, { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 });
-      return  updateResult ;
+      res.cookie('refreshToken', updateUserInput.refreshToken, { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 });
+      return updateResult;
     } catch (error) {
       throw new InternalServerErrorException('Something went wrong while updating refresh token with message:' + error.message);
     }
@@ -37,7 +38,7 @@ export class AuthService {
       if (createAuthInput.password !== createAuthInput.confirmPassword) {
         throw new ConflictException('Password does not match')
       }
-      
+
       const createUserInput: CreateAuthInput = {
         ...createAuthInput,// Add the missing refreshToken property
       };
@@ -52,7 +53,7 @@ export class AuthService {
         ...updateresult.toObject(),
         accessToken: accessToken,
       };
-    
+
       return returnData
     } catch (error) {
       throw new InternalServerErrorException('Something went wrong while creating user with message:' + error.message)
@@ -60,16 +61,88 @@ export class AuthService {
 
   }
 
-  login(loginAuthInput: LoginAuthInput) {
-    return `This action returns all auth`;
+  async login(loginAuthInput: LoginAuthInput, context: GqlExecutionContext) {
+    try {
+      const { email, username, password } = loginAuthInput;
+
+      const foundUserByEmail = await this.userService.findOneByEmail(email);
+      const foundUserByUsername = await this.userService.findOneByUsername(username);
+      if (!foundUserByEmail && !foundUserByUsername) {
+        throw new ConflictException('User not found, please enter a valid email or username');
+      }
+
+      const user = foundUserByEmail || foundUserByUsername;
+
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        throw new ConflictException('Invalid password');
+      }
+
+      const userPayload = { username: user.username, sub: user._id, role: user.role };
+      const accessToken = await this.jwtService.signAsync(userPayload, { secret: process.env.ACCESS_TOKEN_SECRET, expiresIn: '1h' });
+      const refreshToken = await this.jwtService.signAsync(userPayload, { secret: process.env.REFRESH_TOKEN_SECRET, expiresIn: '7d' });
+
+      const updateInput = { id: user.id, email: user.email, password: user.password, refreshToken };
+      console.log(updateInput)
+      const updateresult = await this.updateRefreshToken(updateInput, context);
+      console.log('test')
+      const returnData = {
+        ...updateresult.toObject(),
+        accessToken: accessToken,
+      };
+      console.log(returnData)
+
+      return returnData;
+
+    } catch (error) {
+      throw new InternalServerErrorException('Something went wrong while logging in: ' + error.message);
+    }
   }
 
-  logout() {
-    return `This action returns a  auth`;
+  async logout(context: GqlExecutionContext | any) {
+    try {
+      const res: Response = context.res;
+      console.log(context.req.headers.authorization)
+      const accessToken = context.req.headers.authorization.split(' ')[1];
+      console.log(accessToken)
+      const user = await this.jwtService.decode(accessToken);
+      console.log(user)
+      await this.userService.deleteRefreshToken(user.email, user.username);
+      res.clearCookie('refreshToken');
+      return 'User logged out successfully'
+    } catch (error) {
+      throw new InternalServerErrorException('Something went wrong while logging out: ' + error.message);
+    }
   }
 
-  handleRefreshToken() {
-    return `This action updates a  auth`;
+  async handleRefreshToken(context: GqlExecutionContext | any) {
+    try {
+      const cookies = context.req.cookies;
+      console.log(cookies)
+      if (!cookies?.refreshToken) {
+        throw new UnauthorizedException({ message: 'Unauthorized please reconnect to your account' });
+      }
+      const refreshToken = cookies.refreshToken;
+      console.log(refreshToken)
+      const searchUser = await this.jwtService.decode(refreshToken);
+      console.log(searchUser)
+      const user = await this.userService.findOneByEmail(searchUser.email) || await this.userService.findOneByUsername(searchUser.username);
+      console.log('user searched')
+      console.log(user)
+      if (!user) {
+        throw new UnauthorizedException({ message: 'Unauthorized' });
+      }
+      const decodedUser = await this.jwtService.verifyAsync(
+        refreshToken,
+        { secret: process.env.REFRESH_TOKEN_SECRET }
+      );
+
+      const payload = { email: decodedUser.email, sub: decodedUser.sub, role: decodedUser.role };
+      const accessToken = await this.jwtService.signAsync(payload, { secret: process.env.ACCESS_TOKEN_SECRET });
+      return { accessToken };
+    } catch (error) {
+      throw new InternalServerErrorException('Something went wrong while refreshing token with message:' + error.message);
+    }
   }
 
 }

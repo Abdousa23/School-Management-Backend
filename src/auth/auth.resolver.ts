@@ -9,6 +9,9 @@ import { Response } from 'express';
 import { User } from 'src/user/user.type';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { Auth } from './auth.type';
+import { Public } from './guards/auth.public';
+
+@Public()
 @Resolver(Auth)
 export class AuthResolver {
   constructor(private readonly authService: AuthService) { }
@@ -20,22 +23,27 @@ export class AuthResolver {
     // @Res() res : Response
   ) {
     const res = await this.authService.register(createAuthInput, context);
-    console.log('resssd')
-    console.log(res)
     return res
   }
-  @Mutation(() => [Auth], { name: 'login' })
-  Signin(@Args('updateAuthInput') loginAuthInput: LoginAuthInput) {
-    return this.authService.login(loginAuthInput);
+  @Mutation(() => Auth, { name: 'login' })
+  async Signin(
+    @Args('updateAuthInput') loginAuthInput: LoginAuthInput,
+    @Context() context: GqlExecutionContext,
+  ) {
+    return await this.authService.login(loginAuthInput, context);
   }
-  @Query(() => [Auth], { name: 'auth' })
-  Signout() {
-    return this.authService.logout();
+  @Query(() => String , { name: 'logout' })
+  async Signout(
+    @Context() context: GqlExecutionContext,
+  ) {
+    return await this.authService.logout(context);
   }
 
-  @Query(() => Auth, { name: 'auth' })
-  Refresh(@Args('id', { type: () => Int }) id: number) {
-    return this.authService.handleRefreshToken();
+  @Query(() => Auth, { name: 'refreshToken' })
+  async Refresh(
+    @Context() context: GqlExecutionContext,
+  ) {
+    return await this.authService.handleRefreshToken(context);
   }
 
 
